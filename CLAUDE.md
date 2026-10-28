@@ -29,14 +29,21 @@ mvn test                             # also writes JaCoCo coverage to target/sit
 
 All in `pom.xml`:
 - `org.wildfly.plugins:wildfly-maven-plugin` (version in `version.wildfly.plugin`) runs its `package` goal with `<bootable-jar>true</bootable-jar>`. Do **not** switch back to `wildfly-jar-maven-plugin`, which is deprecated.
-- The server comes from the `org.wildfly:wildfly-galleon-pack:${version.wildfly}` feature pack. Galleon **layers** decide which subsystems are included (currently `jaxrs-server`, which covers servlet, JSP and JAX-RS). Add layers there when the app needs more (e.g. `jpa`, `cdi`, `ejb-lite`).
+- The server comes from the `org.wildfly:wildfly-galleon-pack:${version.wildfly}` feature pack. Galleon **layers** decide which subsystems are included (currently `jaxrs-server` for servlet, JSP, JAX-RS and CDI; `embedded-activemq` for an in-VM Artemis JMS broker; and `ejb` for message-driven beans). Add layers there when the app needs more (e.g. `jpa`). MDBs need the full `ejb` layer because `ejb-lite` has no MDB support.
 - The plugin must be declared under `<build><plugins>`, not only `<pluginManagement>`, or no bootable jar is produced.
 - The WAR is deployed as `ROOT.war` (context root `/`). This plugin drops it into `standalone/deployments`, so the **`deployment-scanner` layer must not be excluded**, or the server boots with no app and returns 404.
 
+## Messaging
+
+The JMS queue is declared in code by `@JMSDestinationDefinition` on `NaicQueueListener` (JNDI `java:/queue/naic`, Artemis queue `naic`), so there's no server-side config. `NaicQueueListener` is the MDB that logs each message. `POST /api/messages` (`MessageEndpoint`) sends a `text/plain` body to the queue. The MDB uses the ejb3 subsystem's default resource adapter (`activemq-ra`, provided by `embedded-activemq`).
+
 ## Testing endpoints
 
-JAX-RS endpoints are tested in memory with RESTEasy's mock dispatcher (`org.jboss.resteasy.mock`, test-scoped `resteasy-core`), MockMvc-style: no server, but real routing/param binding/content negotiation. See `HelloEndpointTest`. Request paths are relative to `@ApplicationPath` (omit `/api`). There's no CDI in this harness, so injected dependencies must be supplied by hand. Keep `version.resteasy` matched to the RESTEasy bundled in the chosen WildFly (check `target/server/modules/.../resteasy-core/main/` after a package).
+JAX-RS endpoints are tested in memory with RESTEasy's mock dispatcher (`org.jboss.resteasy.mock`, test-scoped `resteasy-core`), MockMvc-style: no server, but real routing/param binding/content negotiation. See `HelloEndpointTest`. Request paths are relative to `@ApplicationPath` (omit `/api`). There's no CDI in this harness, so injected dependencies must be supplied by hand. JMS interfaces are stubbed with `java.lang.reflect.Proxy` because there's no mocking library (see `MessageEndpointTest`, `NaicQueueListenerTest`). Keep `version.resteasy` matched to the RESTEasy bundled in the chosen WildFly (check `target/server/modules/.../resteasy-core/main/` after a package).
 
 ## Conventions
 
 - Use Jakarta namespaces (`jakarta.*`, `web.xml` schema `https://jakarta.ee/xml/ns/jakartaee` v6.0). `jakarta.jakartaee-api` is `provided` because WildFly supplies it at runtime.
+- A class's own logger is always named after the class it's declared in: `private static final Logger LOG = Logger.getLogger(ThisClass.class.getName());`. The one exception is a test that captures what the class under test logs. It has to look up that class's logger, so name the field for what it is (e.g. `listenerLog`), not as the test's own logger.
+- Use the collection method that says what you mean instead of index or size arithmetic: `getFirst()`/`getLast()` rather than `get(0)`/`get(size() - 1)` (Java 21 sequenced collections), `isEmpty()` rather than `size() == 0`, `contains`, `removeFirst()` and so on. This applies in tests too.
+- In tests, prefer a clear, readable assertion to one the reader has to decode from numbers: `assertFalse(list.isEmpty())` / `assertTrue(list.isEmpty())` rather than `assertEquals(1, list.size())` / `assertEquals(0, list.size())`.

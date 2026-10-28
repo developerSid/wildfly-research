@@ -116,6 +116,8 @@
           </feature-packs>
           <layers>
             <layer>jaxrs-server</layer>
+            <layer>embedded-activemq</layer> <!-- in-VM Artemis broker (JMS provider) -->
+            <layer>ejb</layer> <!-- message-driven beans; ejb-lite has no MDBs -->
           </layers>
           <bootable-jar>true</bootable-jar>
           <bootable-jar-name>naic-bootable.jar</bootable-jar-name>

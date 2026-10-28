@@ -57,11 +57,19 @@ When the log shows `WFLYSRV0025: WildFly 42.0.0.Final ... started`, the app is a
 |----------------------------------------|-------------------------------------------------------|
 | http://localhost:8080/                 | JSP welcome page ("Hello World!")                     |
 | http://localhost:8080/api/hello/{user} | REST endpoint, returns `Hello {user}` as `text/plain` |
+| `POST` http://localhost:8080/api/messages | Puts a `text/plain` body on the `naic` JMS queue (202) |
 
 ```sh
 curl http://localhost:8080/api/hello/gary
 # Hello gary
+
+curl -X POST -H 'Content-Type: text/plain' -d 'hi there' http://localhost:8080/api/messages
+# server console: INFO  [estate.myers.naic.messaging.NaicQueueListener] ... Received: hi there
 ```
+
+The JMS provider is the ActiveMQ Artemis broker embedded in WildFly (`embedded-activemq` layer). The `naic` queue is
+created on deployment by `@JMSDestinationDefinition`, and the `NaicQueueListener` message-driven bean logs every
+message it receives.
 
 Stop the server with `Ctrl+C`.
 
@@ -100,6 +108,8 @@ Machine-readable versions are written alongside: `target/site/jacoco/jacoco.xml`
 src/main/java/estate/myers/naic/
   RestApplication.java          JAX-RS activation, mounts REST endpoints under /api
   endpoint/HelloEndpoint.java   GET /api/hello/{user}
+  endpoint/MessageEndpoint.java POST /api/messages, sends the body to the naic queue
+  messaging/NaicQueueListener.java  MDB that defines the naic queue and logs its messages
 src/main/webapp/                index.jsp and WEB-INF/web.xml
 src/test/java/                  JUnit 4 tests
 ```
@@ -109,8 +119,9 @@ src/test/java/                  JUnit 4 tests
 The server is built by the `wildfly-maven-plugin` (see `pom.xml`):
 
 - **Feature pack:** `org.wildfly:wildfly-galleon-pack` at `version.wildfly` (42.0.0.Final).
-- **Layers:** `jaxrs-server` (servlet, JSP, Jakarta REST). Add Galleon layers here if the app needs more subsystems, for
-  example `jpa` or `ejb-lite`.
+- **Layers:** `jaxrs-server` (servlet, JSP, Jakarta REST, CDI), `embedded-activemq` (in-VM Artemis JMS broker) and
+  `ejb` (message-driven beans; `ejb-lite` doesn't support them). Add Galleon layers here if the app needs more
+  subsystems, for example `jpa`.
 - **Deployment:** the WAR is deployed as `ROOT.war`, so it is served at `/`. The deployment scanner layer has to stay
   enabled because that's how the app is loaded at startup.
 
