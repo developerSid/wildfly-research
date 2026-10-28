@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Runs two clustered naic nodes from target/naic-bootable.jar in the foreground:
+# node1 on HTTP 8080 and node2 on 8180 (port offset 100), each pointed at the
+# other as its messaging peer. Output is prefixed per node; Ctrl-C stops both.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+jar="$root/target/naic-bootable.jar"
+[[ -f "$jar" ]] || { echo "naic-cluster: $jar not found, run 'mvn clean package' first" >&2; exit 1; }
+
+pids=()
+run_node() {
+    local name=$1 offset=$2 peer_port=$3
+    java -jar "$jar" -Djboss.node.name="$name" -Djboss.socket.binding.port-offset="$offset" \
+        -Dnaic.peer.port="$peer_port" "${@:4}" \
+        > >(awk -v p="[$name] " '{ print p $0; fflush() }') 2>&1 &
+    pids+=($!)
+}
+
+stop() {
+    trap - INT TERM EXIT
+    kill "${pids[@]}" 2>/dev/null || true
+    wait
+}
+trap stop INT TERM EXIT
+
+run_node node1 0 8180 "$@"
+run_node node2 100 8080 "$@"
+wait

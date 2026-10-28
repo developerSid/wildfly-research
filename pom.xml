@@ -122,6 +122,14 @@
           <bootable-jar>true</bootable-jar>
           <bootable-jar-name>naic-bootable.jar</bootable-jar-name>
           <name>ROOT.war</name> <!-- serve at / -->
+          <packaging-scripts>
+            <packaging-script>
+              <scripts>
+                <!-- cluster the embedded broker with a peer node -->
+                <script>${project.basedir}/src/main/wildfly/cluster-messaging.cli</script>
+              </scripts>
+            </packaging-script>
+          </packaging-scripts>
         </configuration>
         <executions>
           <execution>

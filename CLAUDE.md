@@ -37,6 +37,15 @@ All in `pom.xml`:
 
 The JMS queue is declared in code by `@JMSDestinationDefinition` on `NaicQueueListener` (JNDI `java:/queue/naic`, Artemis queue `naic`), so there's no server-side config. `NaicQueueListener` is the MDB that logs each message. `POST /api/messages` (`MessageEndpoint`) sends a `text/plain` body to the queue. The MDB uses the ejb3 subsystem's default resource adapter (`activemq-ra`, provided by `embedded-activemq`).
 
+The embedded broker is clustered with one peer by `src/main/wildfly/cluster-messaging.cli`, which the plugin runs at package time via `<packaging-scripts>`. It uses static connectors over HTTP and `ON_DEMAND` load balancing, so a message POSTed to either node is consumed exactly once, round-robin across nodes. The peer is set at runtime with `-Dnaic.peer.port` (default 8180), `-Dnaic.peer.host` (default localhost) and `-Dnaic.cluster.password`. Two local nodes:
+
+```sh
+java -jar target/naic-bootable.jar -Djboss.node.name=node1 -Dnaic.peer.port=8180
+java -jar target/naic-bootable.jar -Djboss.node.name=node2 -Djboss.socket.binding.port-offset=100 -Dnaic.peer.port=8080
+```
+
+`naic-cluster` (in `.local/bin`, put on `PATH` by direnv's `.envrc`) runs both of these in the foreground with `[node1]`/`[node2]`-prefixed output, and Ctrl-C stops both. Extra arguments are passed to both JVMs. `naic-send [-n 1|2] [-c COUNT] [MESSAGE...]`, next to it, POSTs messages to one node (default node1). It reads one message per line from stdin when given no messages. A single node on its own still works. With no peer to connect to, it keeps every message for its own MDB.
+
 ## Testing endpoints
 
 JAX-RS endpoints are tested in memory with RESTEasy's mock dispatcher (`org.jboss.resteasy.mock`, test-scoped `resteasy-core`), MockMvc-style: no server, but real routing/param binding/content negotiation. See `HelloEndpointTest`. Request paths are relative to `@ApplicationPath` (omit `/api`). There's no CDI in this harness, so injected dependencies must be supplied by hand. JMS interfaces are stubbed with `java.lang.reflect.Proxy` because there's no mocking library (see `MessageEndpointTest`, `NaicQueueListenerTest`). Keep `version.resteasy` matched to the RESTEasy bundled in the chosen WildFly (check `target/server/modules/.../resteasy-core/main/` after a package).

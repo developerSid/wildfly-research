@@ -1,0 +1,8 @@
+# Clusters this node's embedded Artemis broker with one peer over HTTP, so a
+# message sent to either node is consumed exactly once somewhere in the cluster.
+# Set -Dnaic.peer.port (and -Dnaic.peer.host) at runtime to point at the peer.
+/subsystem=messaging-activemq/server=default:write-attribute(name=cluster-user, value=naic-cluster)
+/subsystem=messaging-activemq/server=default:write-attribute(name=cluster-password, value="${naic.cluster.password:naic-dev-only}")
+/socket-binding-group=standard-sockets/remote-destination-outbound-socket-binding=messaging-peer:add(host="${naic.peer.host:localhost}", port="${naic.peer.port:8180}")
+/subsystem=messaging-activemq/server=default/http-connector=peer-connector:add(socket-binding=messaging-peer, endpoint=http-acceptor)
+/subsystem=messaging-activemq/server=default/cluster-connection=naic-cluster:add(cluster-connection-address=jms, connector-name=http-connector, static-connectors=[peer-connector], message-load-balancing-type=ON_DEMAND, retry-interval=1000, reconnect-attempts=-1)

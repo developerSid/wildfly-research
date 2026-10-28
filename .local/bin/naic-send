@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Posts text messages to the naic queue through one node started by naic-cluster.
+#
+#   naic-send [-n 1|2] [-c COUNT] [MESSAGE...]
+#
+#   -n  node to post to: 1 = node1 on 8080 (default), 2 = node2 on 8180
+#   -c  send each message COUNT times, numbered "MESSAGE #1", "MESSAGE #2", ...
+#
+# With no MESSAGE arguments, each line of stdin is sent as a message.
+set -euo pipefail
+
+usage() { sed -n '4,9s/^# \{0,1\}//p' "${BASH_SOURCE[0]}" >&2; exit 2; }
+
+node=1 count=1
+while getopts 'n:c:h' opt; do
+    case $opt in
+        n) node=$OPTARG ;;
+        c) count=$OPTARG ;;
+        *) usage ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+case $node in
+    1) port=8080 ;;
+    2) port=8180 ;;
+    *) echo "naic-send: -n must be 1 or 2, not '$node'" >&2; exit 2 ;;
+esac
+[[ $count =~ ^[1-9][0-9]*$ ]] || { echo "naic-send: -c must be a positive number, not '$count'" >&2; exit 2; }
+
+url="http://localhost:$port/api/messages"
+
+send() {
+    curl -fsS -X POST -H 'Content-Type: text/plain' --data-binary "$1" "$url"
+    echo "node$node <- $1"
+}
+
+send_all() {
+    if (( count == 1 )); then
+        send "$1"
+    else
+        for ((i = 1; i <= count; i++)); do send "$1 #$i"; done
+    fi
+}
+
+if (( $# > 0 )); then
+    for message in "$@"; do send_all "$message"; done
+else
+    while IFS= read -r message; do send_all "$message"; done
+fi

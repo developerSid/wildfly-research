@@ -31,6 +31,12 @@ The required tool versions are pinned in [`.sdkmanrc`](.sdkmanrc):
 To have SDKMAN switch versions automatically whenever you `cd` into the repo, set `sdkman_auto_env=true` in
 `~/.sdkman/etc/config`.
 
+## Optional: helper scripts via direnv
+
+The repository's [`.envrc`](.envrc) uses [direnv](https://direnv.net/) to add [`.local/bin`](.local/bin) to your
+`PATH` while you're in the repo. That makes the `naic-cluster` and `naic-send` helper scripts available as plain
+commands. To install and use direnv, see the [direnv documentation](https://direnv.net/#getting-started).
+
 ## Build
 
 ```sh
